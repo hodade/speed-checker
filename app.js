@@ -23,7 +23,6 @@ const plateInput = document.querySelector("#plateInput");
 const savePlate = document.querySelector("#savePlate");
 const cameraHelp = document.querySelector("#cameraHelp");
 const demoButton = document.querySelector("#demoButton");
-const mobileNotice = document.querySelector("#mobileNotice");
 
 const sampleWidth = 240;
 const sampleHeight = 135;
@@ -175,16 +174,6 @@ async function requestWakeLock() {
 
 function isMobileDevice() {
   return matchMedia("(pointer: coarse)").matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-}
-
-function showMobileNotice() {
-  if (!isMobileDevice()) return;
-  if (window.isSecureContext) {
-    mobileNotice.textContent = "スマホでは背面カメラを優先して起動します。測定中は端末を固定し、2本の縦ゲートを車が左右方向に横切るように向けてください。";
-  } else {
-    mobileNotice.textContent = "このURLはHTTPSではないため、スマホのブラウザではカメラがブロックされます。HTTPSで公開したURLを開くと実カメラで測定できます。";
-  }
-  mobileNotice.hidden = false;
 }
 
 function makeDemoStream() {
@@ -785,4 +774,3 @@ function escapeHtml(value) {
 }
 
 addEventListener("resize", resizeCanvases);
-showMobileNotice();
