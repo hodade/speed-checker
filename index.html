@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#136f63">
+    <title>Road Speed Logger</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <section class="stage" aria-label="カメラ映像">
+        <video id="camera" playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <canvas id="work" aria-hidden="true"></canvas>
+        <div class="topbar">
+          <div>
+            <h1>Road Speed Logger</h1>
+            <p id="status">カメラ待機中</p>
+          </div>
+          <div class="camera-actions">
+            <button id="demoButton">デモ</button>
+            <button id="startButton" class="primary">カメラ開始</button>
+          </div>
+        </div>
+        <div id="cameraHelp" class="camera-help" hidden></div>
+        <div id="mobileNotice" class="mobile-notice" hidden></div>
+        <div class="readout">
+          <span>追跡 <strong id="trackCount">0</strong></span>
+          <span>記録 <strong id="logCount">0</strong></span>
+          <span>最新 <strong id="latestSpeed">-- km/h</strong></span>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <section class="controls">
+          <h2>測定設定</h2>
+          <label>
+            ゲート間距離
+            <span class="field">
+              <input id="distanceMeters" type="number" min="1" max="200" step="0.5" value="10">
+              <span>m</span>
+            </span>
+          </label>
+          <label>
+            検出感度
+            <input id="sensitivity" type="range" min="15" max="90" step="1" value="38">
+          </label>
+          <label>
+            最小車両サイズ
+            <input id="minArea" type="range" min="100" max="6000" step="50" value="350">
+          </label>
+          <div class="switches">
+            <label><input id="recordSnapshots" type="checkbox" checked>画像保存</label>
+            <label><input id="showDebug" type="checkbox">検出枠</label>
+          </div>
+          <div class="actions">
+            <button id="downloadCsv">CSV</button>
+            <button id="clearLogs">消去</button>
+          </div>
+        </section>
+
+        <section class="plate-editor" id="plateEditor" hidden>
+          <h2>ナンバー記録</h2>
+          <img id="platePreview" alt="車両画像">
+          <label>
+            ナンバー
+            <input id="plateInput" type="text" placeholder="例: 品川 300 あ 12-34">
+          </label>
+          <button id="savePlate">保存</button>
+        </section>
+
+        <section class="log">
+          <h2>通過ログ</h2>
+          <div id="records" class="records"></div>
+        </section>
+      </aside>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
