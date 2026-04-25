@@ -316,6 +316,11 @@ function findMotionBoxes(data, previous, threshold, minPixels) {
       let minY = y;
       let maxY = y;
       let count = 0;
+      let sumX = 0;
+      let sumY = 0;
+      let sumXX = 0;
+      let sumYY = 0;
+      let sumXY = 0;
       stack.push(start);
       visited[start] = 1;
 
@@ -328,6 +333,11 @@ function findMotionBoxes(data, previous, threshold, minPixels) {
         maxX = Math.max(maxX, px);
         minY = Math.min(minY, py);
         maxY = Math.max(maxY, py);
+        sumX += px;
+        sumY += py;
+        sumXX += px * px;
+        sumYY += py * py;
+        sumXY += px * py;
 
         for (const next of [index - 1, index + 1, index - sampleWidth, index + sampleWidth]) {
           if (next < 0 || next >= moving.length || visited[next] || !moving[next]) continue;
@@ -341,11 +351,25 @@ function findMotionBoxes(data, previous, threshold, minPixels) {
       const width = maxX - minX + 1;
       const height = maxY - minY + 1;
       if (count >= minPixels && width > 12 && height > 8) {
-        boxes.push({ x: minX, y: minY, width, height, area: count });
+        boxes.push(makeBox(minX, minY, maxX, maxY, count, sumX, sumY, sumXX, sumYY, sumXY));
       }
     }
   }
   return mergeBoxes(boxes);
+}
+
+function makeBox(minX, minY, maxX, maxY, count, sumX, sumY, sumXX, sumYY, sumXY) {
+  const width = maxX - minX + 1;
+  const height = maxY - minY + 1;
+  return {
+    x: minX,
+    y: minY,
+    width,
+    height,
+    area: count,
+    stats: { count, sumX, sumY, sumXX, sumYY, sumXY },
+    shape: orientedShape(count, sumX, sumY, sumXX, sumYY, sumXY, width, height),
+  };
 }
 
 function mergeBoxes(boxes) {
@@ -357,12 +381,51 @@ function mergeBoxes(boxes) {
       const y1 = Math.min(existing.y, box.y);
       const x2 = Math.max(existing.x + existing.width, box.x + box.width);
       const y2 = Math.max(existing.y + existing.height, box.y + box.height);
-      Object.assign(existing, { x: x1, y: y1, width: x2 - x1, height: y2 - y1, area: existing.area + box.area });
+      const stats = combineStats(existing.stats, box.stats);
+      Object.assign(existing, {
+        x: x1,
+        y: y1,
+        width: x2 - x1,
+        height: y2 - y1,
+        area: stats.count,
+        stats,
+        shape: orientedShape(stats.count, stats.sumX, stats.sumY, stats.sumXX, stats.sumYY, stats.sumXY, x2 - x1, y2 - y1),
+      });
     } else {
       merged.push({ ...box });
     }
   }
   return merged;
+}
+
+function combineStats(a, b) {
+  return {
+    count: a.count + b.count,
+    sumX: a.sumX + b.sumX,
+    sumY: a.sumY + b.sumY,
+    sumXX: a.sumXX + b.sumXX,
+    sumYY: a.sumYY + b.sumYY,
+    sumXY: a.sumXY + b.sumXY,
+  };
+}
+
+function orientedShape(count, sumX, sumY, sumXX, sumYY, sumXY, width, height) {
+  if (!count) return { ratio: width / Math.max(height, 1), angle: 0, fill: 0 };
+  const meanX = sumX / count;
+  const meanY = sumY / count;
+  const covXX = sumXX / count - meanX * meanX;
+  const covYY = sumYY / count - meanY * meanY;
+  const covXY = sumXY / count - meanX * meanY;
+  const trace = covXX + covYY;
+  const diff = covXX - covYY;
+  const root = Math.sqrt(diff * diff + 4 * covXY * covXY);
+  const major = Math.max((trace + root) / 2, 0.0001);
+  const minor = Math.max((trace - root) / 2, 0.0001);
+  return {
+    ratio: Math.sqrt(major / minor),
+    angle: (Math.atan2(2 * covXY, diff) / 2) * (180 / Math.PI),
+    fill: count / Math.max(width * height, 1),
+  };
 }
 
 function expand(box, amount) {
@@ -412,7 +475,7 @@ function updateTracks(boxes, data, now) {
       cx,
       cy,
       color: estimateColor(data, box),
-      type: estimateType(box),
+      type: estimateType(box, data),
       lastSeen: now,
     });
     unmatched.delete(bestTrack.id);
@@ -492,13 +555,56 @@ function colorName(r, g, b) {
   return "不明";
 }
 
-function estimateType(box) {
-  const ratio = box.width / Math.max(box.height, 1);
+function estimateType(box, data) {
+  const axisRatio = box.width / Math.max(box.height, 1);
+  const ratio = Math.max(axisRatio, box.shape?.ratio || 0);
   const area = box.width * box.height;
-  if (area > 5600 || (ratio > 2.6 && box.height > 44)) return "トラック/バス";
-  if (ratio > 2.9) return "セダン/クーペ";
-  if (ratio > 2.1) return "SUV/ワゴン";
+  const heightRatio = box.height / Math.max(box.width, 1);
+  const tallBody = box.height >= 22 && heightRatio >= 0.24;
+  const boxyBody = (box.shape?.fill || 0) >= 0.28;
+  const profile = vehicleProfile(data, box);
+  const windowedTallBody = profile.darkUpperRatio >= 0.18 && profile.darkBandWidth >= 0.34 && box.height >= 22;
+  const practicalMinivanShape = ratio >= 2.0 && ratio <= 4.4 && box.height >= 18 && area >= 850;
+
+  if (area > 6900 || (ratio > 3.4 && box.height > 48)) return "トラック/バス";
+  if (
+    practicalMinivanShape &&
+    ((tallBody || windowedTallBody) || box.height >= 24 || profile.darkUpperRatio >= 0.12) &&
+    (boxyBody || profile.darkUpperRatio >= 0.16 || heightRatio >= 0.2)
+  ) {
+    return "ミニバン";
+  }
+  if (ratio > 2.95 && !tallBody) return "セダン/クーペ";
+  if (ratio > 2.15) return tallBody ? "SUV/ワゴン" : "セダン/クーペ";
   return "小型車";
+}
+
+function vehicleProfile(data, box) {
+  const startX = Math.max(0, Math.floor(box.x + box.width * 0.14));
+  const endX = Math.min(sampleWidth, Math.ceil(box.x + box.width * 0.9));
+  const startY = Math.max(0, Math.floor(box.y + box.height * 0.16));
+  const endY = Math.min(sampleHeight, Math.ceil(box.y + box.height * 0.58));
+  let dark = 0;
+  let total = 0;
+  const darkColumns = new Set();
+
+  for (let y = startY; y < endY; y += 2) {
+    for (let x = startX; x < endX; x += 2) {
+      const i = (y * sampleWidth + x) * 4;
+      const luminance = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+      total += 1;
+      if (luminance < 72) {
+        dark += 1;
+        darkColumns.add(Math.floor((x - startX) / 4));
+      }
+    }
+  }
+
+  const columnCount = Math.max(1, Math.ceil((endX - startX) / 4));
+  return {
+    darkUpperRatio: total ? dark / total : 0,
+    darkBandWidth: darkColumns.size / columnCount,
+  };
 }
 
 function addLog(track, speed) {
