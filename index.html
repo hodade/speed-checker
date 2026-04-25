@@ -2,10 +2,10 @@
 <html lang="ja">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#136f63">
     <title>Road Speed Logger</title>
-    <link rel="stylesheet" href="styles.css?v=no-mobile-notice-1">
+    <link rel="stylesheet" href="styles.css?v=slider-distance-1">
   </head>
   <body>
     <main class="app">
@@ -35,10 +35,12 @@
         <section class="controls">
           <h2>測定設定</h2>
           <label>
-            ゲート間距離
+            <span class="range-heading">
+              ゲート間距離
+              <strong><span id="distanceValue">10</span> m</strong>
+            </span>
             <span class="field">
-              <input id="distanceMeters" type="number" min="1" max="200" step="0.5" value="10">
-              <span>m</span>
+              <input id="distanceMeters" type="range" min="1" max="200" step="0.5" value="10">
             </span>
           </label>
           <label>
@@ -75,6 +77,6 @@
         </section>
       </aside>
     </main>
-    <script src="app.js?v=no-mobile-notice-1"></script>
+    <script src="app.js?v=slider-distance-1"></script>
   </body>
 </html>

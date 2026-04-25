@@ -7,6 +7,7 @@ const wctx = work.getContext("2d", { willReadFrequently: true });
 const startButton = document.querySelector("#startButton");
 const statusText = document.querySelector("#status");
 const distanceMeters = document.querySelector("#distanceMeters");
+const distanceValue = document.querySelector("#distanceValue");
 const sensitivity = document.querySelector("#sensitivity");
 const minArea = document.querySelector("#minArea");
 const showDebug = document.querySelector("#showDebug");
@@ -39,12 +40,17 @@ let lastFrameAt = 0;
 let analysisStarted = false;
 let activeStream = null;
 let wakeLock = null;
+let lastTouchEndAt = 0;
 
 startButton.addEventListener("click", startCamera);
 demoButton.addEventListener("click", startDemo);
+distanceMeters.addEventListener("input", updateDistanceValue);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && activeStream) requestWakeLock();
 });
+document.addEventListener("gesturestart", preventZoomGesture, { passive: false });
+document.addEventListener("gesturechange", preventZoomGesture, { passive: false });
+document.addEventListener("touchend", preventDoubleTapZoom, { passive: false });
 downloadCsv.addEventListener("click", exportCsv);
 clearLogs.addEventListener("click", () => {
   logs = [];
@@ -58,6 +64,21 @@ savePlate.addEventListener("click", () => {
   plateEditor.hidden = true;
   renderLogs();
 });
+
+function updateDistanceValue() {
+  const value = Number(distanceMeters.value);
+  distanceValue.textContent = Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function preventZoomGesture(event) {
+  event.preventDefault();
+}
+
+function preventDoubleTapZoom(event) {
+  const now = Date.now();
+  if (now - lastTouchEndAt < 300) event.preventDefault();
+  lastTouchEndAt = now;
+}
 
 async function startCamera() {
   cameraHelp.hidden = true;
@@ -774,3 +795,4 @@ function escapeHtml(value) {
 }
 
 addEventListener("resize", resizeCanvases);
+updateDistanceValue();
