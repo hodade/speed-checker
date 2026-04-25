@@ -28,8 +28,8 @@ const mobileNotice = document.querySelector("#mobileNotice");
 const sampleWidth = 240;
 const sampleHeight = 135;
 const maxTrackAge = 900;
-const gateA = 0.43;
-const gateB = 0.63;
+const gateA = 0.36;
+const gateB = 0.64;
 
 let previousFrame = null;
 let tracks = new Map();
@@ -180,7 +180,7 @@ function isMobileDevice() {
 function showMobileNotice() {
   if (!isMobileDevice()) return;
   if (window.isSecureContext) {
-    mobileNotice.textContent = "スマホでは背面カメラを優先して起動します。測定中は端末を固定し、2本のゲートが道路を横切るように向けてください。";
+    mobileNotice.textContent = "スマホでは背面カメラを優先して起動します。測定中は端末を固定し、2本の縦ゲートを車が左右方向に横切るように向けてください。";
   } else {
     mobileNotice.textContent = "このURLはHTTPSではないため、スマホのブラウザではカメラがブロックされます。HTTPSで公開したURLを開くと実カメラで測定できます。";
   }
@@ -192,37 +192,61 @@ function makeDemoStream() {
   canvas.width = 1280;
   canvas.height = 720;
   const demoCtx = canvas.getContext("2d");
-  let y = -140;
+  let x = -260;
   let hue = 4;
+  let direction = 1;
 
   function draw() {
-    demoCtx.fillStyle = "#28323a";
+    demoCtx.fillStyle = "#273039";
     demoCtx.fillRect(0, 0, canvas.width, canvas.height);
-    demoCtx.fillStyle = "#3f484f";
-    demoCtx.fillRect(220, 0, 840, canvas.height);
-    demoCtx.strokeStyle = "#d8dde2";
-    demoCtx.lineWidth = 8;
-    demoCtx.setLineDash([44, 42]);
+
+    demoCtx.fillStyle = "#3d474f";
     demoCtx.beginPath();
-    demoCtx.moveTo(640, 0);
-    demoCtx.lineTo(640, canvas.height);
+    demoCtx.moveTo(0, 455);
+    demoCtx.lineTo(canvas.width, 270);
+    demoCtx.lineTo(canvas.width, 575);
+    demoCtx.lineTo(0, 720);
+    demoCtx.closePath();
+    demoCtx.fill();
+
+    demoCtx.strokeStyle = "#d8dde2";
+    demoCtx.lineWidth = 6;
+    demoCtx.setLineDash([42, 34]);
+    demoCtx.beginPath();
+    demoCtx.moveTo(0, 590);
+    demoCtx.lineTo(canvas.width, 420);
     demoCtx.stroke();
     demoCtx.setLineDash([]);
 
-    const x = 535 + Math.sin(y / 70) * 34;
+    const progress = direction === 1 ? x : canvas.width - x - 250;
+    const y = 422 - progress * 0.12;
+    const carX = x;
+    const carY = y + Math.sin(x / 95) * 5;
     demoCtx.fillStyle = `hsl(${hue}, 68%, 45%)`;
-    demoCtx.fillRect(x, y, 210, 112);
-    demoCtx.fillStyle = "#111820";
-    demoCtx.fillRect(x + 28, y + 18, 154, 34);
+    demoCtx.beginPath();
+    demoCtx.moveTo(carX + 25, carY + 70);
+    demoCtx.lineTo(carX + 65, carY + 25);
+    demoCtx.lineTo(carX + 175, carY + 15);
+    demoCtx.lineTo(carX + 235, carY + 58);
+    demoCtx.lineTo(carX + 248, carY + 105);
+    demoCtx.lineTo(carX + 8, carY + 112);
+    demoCtx.closePath();
+    demoCtx.fill();
+    demoCtx.fillStyle = "#121a22";
+    demoCtx.fillRect(carX + 78, carY + 32, 72, 31);
+    demoCtx.fillRect(carX + 156, carY + 28, 48, 34);
     demoCtx.fillStyle = "#f4f0dc";
-    demoCtx.fillRect(x + 66, y + 82, 78, 20);
+    demoCtx.fillRect(direction === 1 ? carX + 202 : carX + 30, carY + 78, 56, 20);
     demoCtx.fillStyle = "#1d242b";
-    demoCtx.fillRect(x + 10, y + 102, 42, 24);
-    demoCtx.fillRect(x + 158, y + 102, 42, 24);
+    demoCtx.beginPath();
+    demoCtx.arc(carX + 58, carY + 108, 22, 0, Math.PI * 2);
+    demoCtx.arc(carX + 204, carY + 103, 22, 0, Math.PI * 2);
+    demoCtx.fill();
 
-    y += 7;
-    if (y > canvas.height + 150) {
-      y = -150;
+    x += 8 * direction;
+    if (x > canvas.width + 260 || x < -310) {
+      direction *= -1;
+      x = direction === 1 ? -260 : canvas.width + 260;
       hue = (hue + 135) % 360;
     }
     requestAnimationFrame(draw);
@@ -365,7 +389,7 @@ function updateTracks(boxes, data, now) {
 
     for (const track of tracks.values()) {
       const distance = Math.hypot(track.cx - cx, track.cy - cy);
-      if (distance < bestDistance && distance < 36) {
+      if (distance < bestDistance && distance < 58) {
         bestTrack = track;
         bestDistance = distance;
       }
@@ -382,7 +406,7 @@ function updateTracks(boxes, data, now) {
       tracks.set(bestTrack.id, bestTrack);
     }
 
-    const previousY = bestTrack.cy ?? cy;
+    const previousX = bestTrack.cx ?? cx;
     Object.assign(bestTrack, {
       box,
       cx,
@@ -392,7 +416,7 @@ function updateTracks(boxes, data, now) {
       lastSeen: now,
     });
     unmatched.delete(bestTrack.id);
-    checkGateCrossing(bestTrack, previousY, cy, now);
+    checkGateCrossing(bestTrack, previousX, cx, now);
   }
 
   for (const id of unmatched) {
@@ -402,11 +426,11 @@ function updateTracks(boxes, data, now) {
   trackCountEl.textContent = String(tracks.size);
 }
 
-function checkGateCrossing(track, previousY, currentY, now) {
-  const yA = sampleHeight * gateA;
-  const yB = sampleHeight * gateB;
-  if (!track.gateATime && crossed(previousY, currentY, yA)) track.gateATime = now;
-  if (!track.gateBTime && crossed(previousY, currentY, yB)) track.gateBTime = now;
+function checkGateCrossing(track, previousX, currentX, now) {
+  const xA = sampleWidth * gateA;
+  const xB = sampleWidth * gateB;
+  if (!track.gateATime && (crossed(previousX, currentX, xA) || spansGate(track.box, xA))) track.gateATime = now;
+  if (!track.gateBTime && (crossed(previousX, currentX, xB) || spansGate(track.box, xB))) track.gateBTime = now;
 
   if (track.gateATime && track.gateBTime && !track.logged) {
     const seconds = Math.abs(track.gateBTime - track.gateATime) / 1000;
@@ -414,6 +438,7 @@ function checkGateCrossing(track, previousY, currentY, now) {
       const speed = (Number(distanceMeters.value) / seconds) * 3.6;
       if (speed >= 3 && speed <= 220) {
         track.logged = true;
+        track.direction = track.gateATime < track.gateBTime ? "左から右" : "右から左";
         addLog(track, speed);
       }
     }
@@ -422,6 +447,10 @@ function checkGateCrossing(track, previousY, currentY, now) {
 
 function crossed(a, b, gate) {
   return (a < gate && b >= gate) || (a > gate && b <= gate);
+}
+
+function spansGate(box, gate) {
+  return box.x <= gate && box.x + box.width >= gate;
 }
 
 function estimateColor(data, box) {
@@ -466,9 +495,9 @@ function colorName(r, g, b) {
 function estimateType(box) {
   const ratio = box.width / Math.max(box.height, 1);
   const area = box.width * box.height;
-  if (area > 5200 || box.height > 70) return "トラック/バス";
-  if (ratio > 2.8) return "セダン";
-  if (ratio > 2.0) return "SUV/ワゴン";
+  if (area > 5600 || (ratio > 2.6 && box.height > 44)) return "トラック/バス";
+  if (ratio > 2.9) return "セダン/クーペ";
+  if (ratio > 2.1) return "SUV/ワゴン";
   return "小型車";
 }
 
@@ -480,6 +509,7 @@ function addLog(track, speed) {
     speed: Math.round(speed * 10) / 10,
     color: track.color,
     type: track.type,
+    direction: track.direction || "",
     plate: "",
     snapshot,
   };
@@ -519,6 +549,7 @@ function renderLogs() {
         <div class="meta">
           <span class="chip"><span class="swatch" style="background:${log.color.rgb}"></span>${log.color.name}</span>
           <span class="chip">${log.type}</span>
+          <span class="chip">${log.direction || "方向不明"}</span>
           <span class="chip">${formatTime(log.time)}</span>
         </div>
         <div class="plate-row">
@@ -550,8 +581,8 @@ function drawOverlay(now) {
   const width = overlay.clientWidth;
   const height = overlay.clientHeight;
   ctx.clearRect(0, 0, width, height);
-  drawGate(height * gateA, "#2d6cdf", "A");
-  drawGate(height * gateB, "#b13f2f", "B");
+  drawGate(width * gateA, "#2d6cdf", "A");
+  drawGate(width * gateB, "#b13f2f", "B");
 
   const scaleX = width / sampleWidth;
   const scaleY = height / sampleHeight;
@@ -580,21 +611,21 @@ function drawGate(y, color, label) {
   ctx.lineWidth = 3;
   ctx.setLineDash([14, 10]);
   ctx.beginPath();
-  ctx.moveTo(0, y);
-  ctx.lineTo(overlay.clientWidth, y);
+  ctx.moveTo(y, 0);
+  ctx.lineTo(y, overlay.clientHeight);
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.fillStyle = color;
-  ctx.fillRect(14, y - 15, 34, 24);
+  ctx.fillRect(y - 17, 14, 34, 24);
   ctx.fillStyle = "#fff";
   ctx.font = "700 13px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
-  ctx.fillText(label, 27, y + 1);
+  ctx.fillText(label, y - 4, 31);
 }
 
 function exportCsv() {
-  const rows = [["time", "speed_kmh", "plate", "color", "type"]];
+  const rows = [["time", "speed_kmh", "plate", "color", "type", "direction"]];
   for (const log of logs) {
-    rows.push([log.time.toISOString(), log.speed, log.plate, log.color.name, log.type]);
+    rows.push([log.time.toISOString(), log.speed, log.plate, log.color.name, log.type, log.direction]);
   }
   const csv = rows.map((row) => row.map(csvCell).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
